@@ -1,0 +1,30 @@
+# Ignore virtual environment directory
+myenv/
+
+# Ignore dataset files
+LZ Datasets/
+# Or, if you only want to ignore specific files:
+# LZ Datasets/padded_waveforms.parquet
+# LZ Datasets/padded_waveforms.csv
+
+# Ignore large binary files
+*.dylib
+*.so
+*.dll
+
+# Ignore Python cache files
+__pycache__/
+*.py[cod]
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Ignore logs
+*.log
+
+# Ignore system files (macOS)
+.DS_Store
+
+# Ignore VS Code settings
+.vscode/
+
