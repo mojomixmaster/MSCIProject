@@ -15,6 +15,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.layers import Conv1D, MaxPooling1D, Flatten, Dense
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers import legacy
 from skopt import gp_minimize
 from skopt.space import Integer
 from skopt.utils import use_named_args
@@ -117,8 +118,8 @@ padded_times = np.array(pad_to_max_length(normalised_times, max_time_length))
 unnormalised_times = arr['times']
 unnormalised_padded_times = np.array(pad_to_max_length(unnormalised_times, max_time_length))
 
-sampling_interval_us = 0.01 # interval between consecutive samples in microseconds
-time_us = [np.arange(len(wave)) * sampling_interval_us for wave in arr["times"]]
+sampling_interval_us = 0.01 # interval between consecutive samples in microseconds (1 timestep : 10 ns)
+time_us = [np.arange(len(wave)) * sampling_interval_us for wave in unnormalised_times]
 print(time_us[1036]) #TEST: the last element in this row should equal 18.3 µs
 
 print(f"Length After Padding: {len(padded_times[0])}")
@@ -135,7 +136,7 @@ max_samples_length_index = ak.argmax(samples_lengths)
 
 print(f'Results are: \n Max. Length = {max_samples_length} \n Max. Length Index = {max_samples_length_index}')
 
-# Apply padding
+# Apply initial padding to standardise the length of all samples
 padded_samples = np.array(pad_to_max_length(normalised_samples, max_samples_length))
 
 print(f"Length After Padding: {len(padded_samples[0])}")
@@ -150,7 +151,7 @@ y = np.array(arr['label']) # labelled as 0,1 and 2 corresponding to cathode, gat
 normalised_times_padded = np.pad(padded_times, ((0, 0), (padding_length, padding_length)), mode='constant', constant_values=0)
 unnormalised_times_padded = np.pad(unnormalised_padded_times, ((0, 0), (padding_length, padding_length)), mode='constant', constant_values=0)
 normalised_samples_padded = np.pad(padded_samples, ((0, 0), (padding_length, padding_length)), mode='constant', constant_values=0)
-X = normalised_samples_padded
+X = normalised_samples_padded # Now, all samples have had 5 µs of padding added to the front and back
 
 time_steps = normalised_times_padded.shape[1]
 
@@ -179,7 +180,7 @@ cathode_hist.fill(cathode_events)
 bin_edges = gate_hist.axes[0].edges
 bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
 
-# Retrieve and adjust counts for each histogram
+# Retrieve and adjust counts for each histogram to normalise counts across event types.
 gate_counts = gate_hist.view() / bin_centers
 tritium_counts = tritium_hist.view() / bin_centers
 cathode_counts = cathode_hist.view() / bin_centers
@@ -292,7 +293,7 @@ labels = arr['label']
 
 radii = ak.to_numpy(arr['r'])
 
-# TO ALTER BETWEEN WEIGHTS AND NORMLAISED WEIGHTS> CHANGE WEIGHTS_NP VARIABLE ACCORDINGLY> DEFAULT: (UNNORMALISED) WEIGHTS
+# TO ALTER BETWEEN WEIGHTS AND NORMLAISED WEIGHTS> CHANGE WEIGHTS_NP VARIABLE ACCORDINGLY> DEFAULT: NORMALISED WEIGHTS
 X_train, X_test, y_train, y_test, area_train, area_test, weights_train, weights_test, \
 normalised_times_train, normalised_times_test, times_us_train, times_us_test, \
 normalised_samples_train, normalised_samples_test, r_train, r_test = train_test_split(
@@ -345,22 +346,22 @@ for lr in random_learning_rates:
     
     # Define the model
     model = Sequential([
-        Conv1D(filters=32, kernel_size=200, strides=1, activation='relu', input_shape=(X_train.shape[1], 1)),
-        MaxPooling1D(pool_size=2),
+        Conv1D(filters=32, kernel_size=100, strides=1, activation='relu', input_shape=(X_train.shape[1], 1)),
+        MaxPooling1D(pool_size=1),
         Flatten(),
         Dense(64, activation='relu'),
         Dense(3, activation='softmax')
     ])
     
     # Compile the model with the current learning rate
-    optimizer = Adam(learning_rate=lr)
+    optimizer = legacy.Adam(learning_rate=lr)
     model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=['accuracy'])
     
     # Train the model
-    history = model.fit(X_train, y_train, epochs=5, batch_size=32, validation_split=0.2, verbose=0, callbacks=[early_stopping])
+    history = model.fit(X_train_padded, y_train, epochs=5, batch_size=32, validation_split=0.2, verbose=0, callbacks=[early_stopping])
     
     # Evaluate on the test set
-    _, test_accuracy = model.evaluate(X_test, y_test, verbose=0)
+    _, test_accuracy = model.evaluate(X_test_padded, y_test, verbose=0)
     print(f"Test Accuracy: {test_accuracy:.4f}")
     
     # Save the accuracy for this learning rate
@@ -385,7 +386,7 @@ plt.savefig(f'{base_dir}Figures/lr_optimization.png')
 plt.show()
 
 # Use the best learning rate
-optimizer = Adam(learning_rate=best_lr)
+optimizer = legacy.Adam(learning_rate=best_lr)
 
 
 # STEP 2: KERNEL SIZE RESEARCH
@@ -395,13 +396,6 @@ kernel_sizes_10us_to_1us = [1000, 800, 600, 400, 200, 100]  # [10 µs, 8 µs, ..
 kernel_sizes_1us_to_100ns = list(range(100, 9, -10))        # [100, 90, ..., 10]
 kernel_sizes_100ns_to_20ns = list(range(10, 1, -1))         # [10, 9, ..., 2]
 combined_kernel_sizes = kernel_sizes_10us_to_1us + kernel_sizes_1us_to_100ns + kernel_sizes_100ns_to_20ns
-
-# Define the padding length
-padding_length = 500  # 5 ms worth of samples at 10 ns per sample
-
-# Add zero-padding on each side of the data (only along the time dimension for 2D data)
-X_train_padded = np.pad(X_train, ((0, 0), (padding_length, padding_length)), mode='constant', constant_values=0)
-X_test_padded = np.pad(X_test, ((0, 0), (padding_length, padding_length)), mode='constant', constant_values=0)
 
 # Placeholder for accuracies and errors
 combined_accuracies = []
@@ -419,7 +413,7 @@ for kernel_size in combined_kernel_sizes:
         # Define the CNN model with default parameters
         model = Sequential([
             Conv1D(filters=32, kernel_size=kernel_size, strides=1, activation='relu', input_shape=(X_train_padded.shape[1], 1)),
-            MaxPooling1D(pool_size=2),
+            MaxPooling1D(pool_size=1),
             Flatten(),
             Dense(64, activation='relu'),
             Dense(3, activation='softmax')
@@ -480,7 +474,7 @@ for kernel_size in combined_kernel_sizes:
         # Define the CNN model
         model = Sequential([
             Conv1D(filters=32, kernel_size=kernel_size, activation='relu', input_shape=(X_train_padded.shape[1], 1)),
-            MaxPooling1D(pool_size=2),
+            MaxPooling1D(pool_size=1),
             Flatten(),
             Dense(64, activation='relu'),
             Dense(3, activation='softmax')
