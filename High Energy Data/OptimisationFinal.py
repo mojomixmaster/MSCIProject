@@ -409,7 +409,7 @@ for kernel_size in combined_kernel_sizes:
     accuracies = []  # Store accuracies for each run
     
     print(f"Training model with kernel size: {kernel_size} samples")
-    for _ in range(num_runs):
+    for _ in range(num_runs): # for statistical reliability
         # Define the CNN model with default parameters
         model = Sequential([
             Conv1D(filters=32, kernel_size=kernel_size, strides=1, activation='relu', input_shape=(X_train_padded.shape[1], 1)),
@@ -481,7 +481,7 @@ for kernel_size in combined_kernel_sizes:
         ])
         
         # Compile the model
-        model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+        model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=['accuracy'])
         
         # Train the model
         history = model.fit(X_train_padded, y_train, epochs=5, batch_size=32, validation_split=0.2, verbose=0)
@@ -770,7 +770,7 @@ back_trim_accuracies = []
 for back_trim in range(0, X_train_padded.shape[1], 50):  # Remove in steps of 50
     print(f"Trimming {back_trim} values from the back")
     
-    # Trim the back of the waveform
+    # Trim the back of the waveforms
     X_train_trimmed = X_train_padded[:, :-back_trim] if back_trim > 0 else X_train_padded
     X_test_trimmed = X_test_padded[:, :-back_trim] if back_trim > 0 else X_test_padded
     
