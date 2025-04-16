@@ -394,7 +394,7 @@ print("\n==== KERNEL SIZE RESEARCH ====")
 # Define kernel sizes (combined from all ranges)
 kernel_sizes_10us_to_1us = [1000, 800, 600, 400, 200, 100]  # [10 µs, 8 µs, ..., 1 µs]
 kernel_sizes_1us_to_100ns = list(range(100, 9, -10))        # [100, 90, ..., 10]
-kernel_sizes_100ns_to_20ns = list(range(10, 1, -1))         # [10, 9, ..., 2]
+kernel_sizes_100ns_to_20ns = list(range(9, 1, -1))         # [9, 8, ..., 2]
 combined_kernel_sizes = kernel_sizes_10us_to_1us + kernel_sizes_1us_to_100ns + kernel_sizes_100ns_to_20ns
 
 # Placeholder for accuracies and errors
@@ -661,7 +661,7 @@ def objective(batch_size, stride, num_filters, pool_size):
     
     # Define the model
     model = Sequential([
-        Conv1D(filters=num_filters, kernel_size=best_kernel_size, strides=stride, activation='relu', input_shape=(X_train_padded.shape[1], 1)),
+        Conv1D(filters=num_filters, kernel_size=best_kernel_size, strides=(stride,), activation='relu', input_shape=(X_train_padded.shape[1], 1)),
         MaxPooling1D(pool_size=pool_size),
         Flatten(),
         Dense(64, activation='relu'),

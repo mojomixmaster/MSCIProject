@@ -1,11 +1,20 @@
 # Ignore virtual environment directory
 myenv/
+newenv/
+Shaz Versions/
 
 # Ignore dataset files
 LZ Datasets/
 # Or, if you only want to ignore specific files:
 # LZ Datasets/padded_waveforms.parquet
 # LZ Datasets/padded_waveforms.csv
+
+FeatureEngineeringVisualisation.py
+High Energy Data/OptimisationFinal.py
+fugazeoptimisations.ipynb
+Waveformsplotta.ipynb
+FeatureEngineeringVisualisation.ipynb
+rocplotta copy.ipynb
 
 # Ignore large binary files
 *.dylib
